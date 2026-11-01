@@ -1,0 +1,12 @@
+.DS_Store
+.venv/
+__pycache__/
+.claude/settings.local.json
+
+# Raw downloads (~500 MB); re-fetch with the scripts, see README
+data/raw/
+
+# Party data (D66-NH spreadsheet and everything derived from it): not public
+*.xlsx
+data/processed/partij_*
+data/processed/vergelijking_*

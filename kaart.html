@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiezerskaart Noord-Holland</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="data/processed/data.js"></script>
+<script src="data/processed/partij_data.js" onerror="window.PARTIJ = null"></script>
+<style>
+:root {
+  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --surface-2: #efeeea; --border: #dcdbd6;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77766f;
+  --accent: #2a78d6; --accent-ink: #ffffff; --warn-bg: #fdf3dc;
+  --p1: #184f95; --p2: #6da7ec; --p3: #e3ecf8; --nodata: #c8c7c1; --hl: #eb6834;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #262624; --border: #383835;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+    --accent: #3987e5; --warn-bg: #3a3122;
+  }
+}
+:root[data-theme="dark"] {
+  --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #262624; --border: #383835;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+  --accent: #3987e5; --warn-bg: #3a3122;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; }
+#side { width: 400px; flex: none; height: 100%; overflow-y: auto; background: var(--surface-1);
+  border-right: 1px solid var(--border); padding: 16px; }
+#map { flex: 1; height: 100%; }
+h1 { font-size: 18px; margin: 0 0 12px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); margin: 20px 0 6px; }
+label { display: block; font-size: 12px; color: var(--text-secondary); margin: 10px 0 3px; }
+select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface-1); color: var(--text-primary); font: inherit; }
+button { font: inherit; color: var(--text-primary); cursor: pointer; }
+.seg { display: flex; background: var(--surface-2); border-radius: 8px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; border: 0; background: transparent; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--surface-1); box-shadow: 0 1px 2px rgba(0,0,0,.12); font-weight: 600; }
+.seg button:disabled { color: var(--text-muted); cursor: not-allowed; }
+.tasks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 4px; }
+.tasks button { text-align: left; border: 1px solid var(--border); background: var(--surface-1); border-radius: 8px;
+  padding: 8px; font-size: 13px; font-weight: 600; line-height: 1.25; }
+.tasks button small { display: block; font-weight: 400; color: var(--text-secondary); font-size: 11.5px; margin-top: 3px; }
+.tasks button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12.5px; margin-top: 8px; }
+.question { font-size: 13px; color: var(--text-secondary); margin: 10px 0 0; }
+.summary { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 13.5px; }
+.summary b { font-variant-numeric: tabular-nums; }
+.note { background: var(--warn-bg); border-radius: 6px; padding: 7px 10px; font-size: 12px; margin-top: 10px; }
+.tiers { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+.tiers i, .sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; vertical-align: -2px; margin-right: 5px; }
+#legend .bar { display: flex; gap: 2px; margin-top: 6px; }
+#legend .bar span { flex: 1; height: 12px; border-radius: 2px; }
+#legend .ticks { position: relative; height: 16px; font-size: 11px; color: var(--text-muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+#legend .ticks span { position: absolute; transform: translateX(-50%); }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 1px solid var(--border); padding: 4px 3px; }
+td { padding: 5px 3px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+td .sub { color: var(--text-muted); font-size: 11.5px; }
+tbody.click tr { cursor: pointer; } tbody.click tr:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.btnrow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.btn { font-size: 12.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); }
+details { margin-top: 18px; font-size: 12.5px; color: var(--text-secondary); }
+details summary { cursor: pointer; color: var(--text-primary); font-weight: 600; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 10px; }
+.maplibregl-popup-content { background: var(--surface-1); color: var(--text-primary); max-height: 62vh; overflow-y: auto;
+  min-width: 270px; border-radius: 8px; }
+.maplibregl-popup-tip { display: none; }
+.pop h3 { margin: 0 0 2px; font-size: 14px; } .pop .g { color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; }
+.pop .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.pop .badge { font-size: 11.5px; padding: 2px 7px; border-radius: 10px; background: var(--surface-2); }
+.pop .badge.t1 { background: var(--p1); color: #fff; } .pop .badge.t2 { background: var(--p2); color: #0b0b0b; }
+.pop ul { margin: 0 0 8px; padding-left: 18px; font-size: 13px; }
+.pop .kv { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; font-size: 12.5px; }
+.pop .kv span:nth-child(even) { text-align: right; font-variant-numeric: tabular-nums; }
+.pop details { margin-top: 6px; }
+[hidden] { display: none !important; }
+@media (max-width: 760px) {
+  body { flex-direction: column; }
+  #side { width: 100%; height: 50%; border-right: 0; border-bottom: 1px solid var(--border); }
+  #map { height: 50%; }
+}
+</style>
+</head>
+<body>
+<aside id="side">
+  <h1>Kiezerskaart D66 Noord-Holland</h1>
+
+  <label id="sourceLabel" style="margin-top:0">Gebaseerd op</label>
+  <div class="seg" id="source" role="group" aria-label="Gebaseerd op">
+    <button data-v="pub">Verkiezingsuitslagen</button>
+    <button data-v="partij">Buurtanalyse D66-NH</button>
+  </div>
+  <p class="question" id="sourceHelp"></p>
+  <div class="note" id="sourceNote" hidden></div>
+
+  <label for="gemeente">Waar ben je actief?</label>
+  <select id="gemeente"><option value="">Heel Noord-Holland</option></select>
+
+  <label>Wat ga je doen?</label>
+  <div class="tasks" id="tasks">
+    <button data-v="canvas">Deur-aan-deur<small>thuisblijvers activeren</small></button>
+    <button data-v="events">Flyeren &amp; events<small>veel bereik per plek</small></button>
+    <button data-v="sterk">Achterban<small>waar staan we sterk</small></button>
+  </div>
+  <p class="question" id="question"></p>
+
+  <section id="actionPanel">
+    <div class="summary" id="summary"></div>
+    <div class="tiers">
+      <span><i style="background:var(--p1)"></i>Prioriteit 1 (top 10%)</span>
+      <span><i style="background:var(--p2)"></i>Prioriteit 2 (volgende 20%)</span>
+      <span><i style="background:var(--p3);outline:1px solid var(--border)"></i>Overig</span>
+      <span><i style="background:var(--nodata)"></i>Geen data</span>
+    </div>
+
+    <h2>Werkgebieden</h2>
+    <p class="question" style="margin-top:0">Aangrenzende buurten met prioriteit 1, samengevoegd. Klik om in te zoomen.</p>
+    <table><thead><tr><th>#</th><th>Gebied</th><th class="n" id="wgHead"></th></tr></thead><tbody id="werkgebieden" class="click"></tbody></table>
+    <div class="btnrow">
+      <button class="btn" id="csv">Download buurtenlijst (CSV)</button>
+    </div>
+    <button class="linkbtn" id="toExplore">Meer kaartlagen bekijken (verkennen) →</button>
+  </section>
+
+  <section id="explorePanel" hidden>
+    <button class="linkbtn" id="toAction">← Terug naar prioriteiten</button>
+    <label for="metric">Kaartlaag</label>
+    <select id="metric"></select>
+    <div id="partyRow" style="display:flex;gap:8px">
+      <div style="flex:1"><label for="election">Verkiezing</label><select id="election"></select></div>
+      <div style="flex:1"><label for="party">Partij</label><select id="party"></select></div>
+    </div>
+    <p class="question" id="metricDesc"></p>
+    <label class="check" id="stationsRow"><input type="checkbox" id="showStations"> Stembureaus tonen (vanaf inzoomniveau 12)</label>
+    <div id="legend"></div>
+    <h2>Top 25 buurten</h2>
+    <table><thead><tr><th>#</th><th>Buurt</th><th class="n" id="topHead"></th></tr></thead><tbody id="top" class="click"></tbody></table>
+  </section>
+
+  <details>
+    <summary>Hoe is dit berekend?</summary>
+    <div id="method"></div>
+  </details>
+</aside>
+<div id="map"></div>
+
+<script>
+const PUB = window.DATA;
+const PARTIJ = window.PARTIJ ? new Map(window.PARTIJ.buurten.map(r => [r.buurtcode, r])) : null;
+const FEATURES = PUB.buurten.features;
+const BY_CODE = new Map(FEATURES.map(f => [f.properties.buurtcode, f]));
+const ELECTIONS = { tk25: "Tweede Kamer 2025", gr26: "Gemeenteraad 2026", ps23: "Provinciale Staten 2023" };
+const COLORS = { 1: "#184f95", 2: "#6da7ec", 3: "#e3ecf8", nodata: "#c8c7c1" };
+const SEQ = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
+const DIV = ["#a92d2d", "#e34948", "#f0a3a2", "#f0efec", "#9ec5f4", "#3987e5", "#184f95"];
+
+const nf0 = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const pct = v => nf1.format(100 * v) + "%";
+const pct0 = v => nf0.format(100 * v) + "%";
+const pp = v => (v > 0 ? "+" : "") + nf1.format(100 * v) + " pp";
+const approx = v => "~" + nf0.format(v >= 100 ? Math.round(v / 10) * 10 : v);
+const ok = v => v != null && !Number.isNaN(v) && Number.isFinite(v);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// ------------------------------------------------------------ data per bron
+const partijMob = r => r && ok(r.d66_stemmen_tk25) && ok(r.opkomst_ps23) && r.opkomst_tk25 > 0
+  ? r.d66_stemmen_tk25 * Math.max(0, 1 - r.opkomst_ps23 / r.opkomst_tk25) : null;
+
+// Each task: score (ranking), volume (what you win, summed per werkgebied) and base (what it costs).
+const TASKS = {
+  canvas: {
+    question: "Waar levert aanbellen de meeste extra D66-stemmen op bij de Provinciale Staten? Hier wonen veel D66-kiezers die bij PS vaak thuisblijven, dicht op elkaar.",
+    pub: { score: p => p.canvas_score, volume: p => p.d66_mobiliseerbaar, volLabel: "thuisblijvende D66-kiezers",
+           base: p => p.huishoudens, baseLabel: "huishoudens", rate: p => p.d66_mob_per_100hh, rateLabel: "per 100 deuren" },
+    partij: { score: (p, r) => { const m = partijMob(r); return ok(m) && r.inwoners >= 50 ? Math.sqrt(m * 100 * m / r.inwoners) : null; },
+              volume: (p, r) => partijMob(r), volLabel: "thuisblijvende D66-kiezers",
+              base: (p, r) => r && r.inwoners, baseLabel: "inwoners",
+              rate: (p, r) => { const m = partijMob(r); return ok(m) && r.inwoners > 0 ? 100 * m / r.inwoners : null; }, rateLabel: "per 100 inwoners" },
+  },
+  events: {
+    question: "Waar bereik je de meeste D66-kiezers op een kleine oppervlakte? Goed voor flyeren, een kraam of een event.",
+    pub: { score: p => ok(p.d66_kiezers_tk25) && p.km2 > 0 ? p.d66_kiezers_tk25 / p.km2 : null,
+           volume: p => p.d66_kiezers_tk25, volLabel: "D66-kiezers", base: p => p.km2, baseLabel: "oppervlakte",
+           rate: p => ok(p.d66_kiezers_tk25) && p.km2 > 0 ? p.d66_kiezers_tk25 / p.km2 : null, rateLabel: "per km²" },
+    partij: { score: (p, r) => r && ok(r.d66_stemmen_tk25) && p.km2 > 0 && r.inwoners >= 50 ? r.d66_stemmen_tk25 / p.km2 : null,
+              volume: (p, r) => r && r.d66_stemmen_tk25, volLabel: "D66-stemmers", base: p => p.km2, baseLabel: "oppervlakte",
+              rate: (p, r) => r && ok(r.d66_stemmen_tk25) && p.km2 > 0 ? r.d66_stemmen_tk25 / p.km2 : null, rateLabel: "per km²" },
+  },
+  sterk: {
+    question: "Waar is D66 het sterkst? Hier vind je het makkelijkst vrijwilligers, gastheren voor een huiskamergesprek of draagvlak voor een event.",
+    pub: { score: p => p.d66_aandeel_tk25, volume: p => p.d66_kiezers_tk25, volLabel: "D66-kiezers",
+           base: p => p.inwoners, baseLabel: "inwoners", rate: p => p.d66_aandeel_tk25, rateLabel: "D66 (TK2025)", rateFmt: pct },
+    partij: { score: (p, r) => r && r.buurtscore, volume: (p, r) => r && r.d66_stemmen_tk25, volLabel: "D66-stemmers",
+              base: (p, r) => r && r.inwoners, baseLabel: "inwoners", rate: (p, r) => r && r.buurtscore, rateLabel: "buurtscore", rateFmt: nf0.format },
+  },
+};
+
+const share = (p, e, party) => {
+  const g = p[`${e}_geldig`];
+  if (p.inwoners < 50 || !(g >= 20)) return null;
+  if (e === "gr26" && !(PUB.grLists[p.gemeentecode] || []).includes(party)) return null;
+  return p[`${e}_${party}`] / g;
+};
+
+const EXPLORE = {
+  pub: {
+    canvas: { label: "Canvas-prioriteit (score)", get: p => p.canvas_score, fmt: nf0.format, col: "Score" },
+    mob: { label: "Thuisblijvende D66-kiezers (aantal)", get: p => p.d66_mobiliseerbaar, fmt: nf0.format, col: "Kiezers" },
+    mob100: { label: "Thuisblijvers per 100 huishoudens", get: p => p.d66_mob_per_100hh, fmt: nf1.format, col: "Per 100 hh" },
+    kiezers: { label: "D66-kiezers TK2025 (aantal)", get: p => p.d66_kiezers_tk25, fmt: nf0.format, col: "Kiezers" },
+    groei: { label: "D66-groei PS2023 → TK2025", get: p => p.d66_groei, fmt: pp, col: "Verschil", diverging: true,
+      desc: "Blauw: D66 groeide hier sterk (nieuwe kiezers om vast te houden). Rood: D66 verloor terrein." },
+    aandeel: { label: "Stemaandeel per partij", party: true, fmt: pct, col: "Aandeel" },
+    opkomst: { label: "Opkomst (indicatief)", party: "election", fmt: pct, col: "Opkomst",
+      get: (p, r, e) => p.inwoners >= 50 ? p[`opkomst_${e}`] : null,
+      desc: "Zeer indicatief: stempassen en de ligging van stembureaus vertekenen dit sterk." },
+  },
+  partij: {
+    buurtscore: { label: "Buurtscore (0-100)", get: (p, r) => r && r.buurtscore, fmt: nf0.format, col: "Score",
+      desc: "Score van de partij. Vooral D66-aandeel en stedelijkheid; exacte berekening onbekend." },
+    mob: { label: "Thuisblijvende D66-kiezers (afgeleid)", get: (p, r) => partijMob(r), fmt: nf0.format, col: "Kiezers" },
+    stemmen: { label: "D66-stemmen TK2025", get: (p, r) => r && r.d66_stemmen_tk25, fmt: nf0.format, col: "Stemmen" },
+    d66_tk25: { label: "D66-aandeel TK2025", get: (p, r) => r && r.d66_tk25, fmt: pct, col: "Aandeel" },
+    d66_tk23: { label: "D66-aandeel TK2023", get: (p, r) => r && r.d66_tk23, fmt: pct, col: "Aandeel" },
+    d66_ps23: { label: "D66-aandeel PS2023", get: (p, r) => r && r.d66_ps23, fmt: pct, col: "Aandeel" },
+    groei: { label: "D66-groei PS2023 → TK2025", get: (p, r) => r && ok(r.d66_tk25) && ok(r.d66_ps23) ? r.d66_tk25 - r.d66_ps23 : null,
+      fmt: pp, col: "Verschil", diverging: true },
+    opk_tk25: { label: "Opkomst TK2025", get: (p, r) => r && r.opkomst_tk25, fmt: pct, col: "Opkomst" },
+    opk_tk23: { label: "Opkomst TK2023", get: (p, r) => r && r.opkomst_tk23, fmt: pct, col: "Opkomst" },
+    opk_ps23: { label: "Opkomst PS2023", get: (p, r) => r && r.opkomst_ps23, fmt: pct, col: "Opkomst" },
+  },
+};
+
+const METHOD = {
+  pub: `<p>Bronnen: stembureau-uitslagen van de Kiesraad (PS2023, TK2025, GR2026), stembureaulocaties van Open State / de Volkskrant,
+    CBS Wijken en Buurten 2025. Per gemeente zijn de stemmen van elk stembureau verdeeld over de omliggende buurten, naar rato van
+    het aantal inwoners. Met een stempas mag je overal in je gemeente stemmen, dus alle buurtcijfers zijn <b>schattingen</b>.</p>
+    <p><b>Thuisblijvende D66-kiezers</b> = geschatte D66-kiezers bij TK2025 × (1 − PS2023-stemmen ÷ TK2025-stemmen, gemeten per wijk).</p>
+    <p><b>Deur-aan-deur</b> rangschikt op √(thuisblijvers × thuisblijvers per 100 huishoudens): zowel veel te winnen als weinig deuren nodig.
+    <b>Flyeren &amp; events</b>: D66-kiezers per km². <b>Achterban</b>: D66-aandeel bij TK2025.</p>
+    <p>Prioriteit 1 = de beste 10% van de buurten binnen je selectie, prioriteit 2 = de volgende 20%. Buurten met minder dan 50 inwoners
+    of huishoudens hebben geen prioriteit.</p>`,
+  partij: `<p>Bron: de spreadsheet van de partij (${window.PARTIJ ? esc(window.PARTIJ.bron) : "niet geladen"}), gekoppeld op buurtcode.
+    De oppervlakte komt van het CBS.</p>
+    <p><b>Thuisblijvende D66-kiezers</b> (afgeleid) = D66-stemmen TK2025 × (1 − opkomst PS2023 ÷ opkomst TK2025).
+    <b>Deur-aan-deur</b> rangschikt op √(thuisblijvers × thuisblijvers per 100 inwoners); de spreadsheet heeft geen huishoudens.
+    <b>Flyeren &amp; events</b>: D66-stemmen per km². <b>Achterban</b>: de buurtscore van de partij.</p>
+    <p>In Hoorn en Heemstede ontbreekt PS2023, dus daar is geen deur-aan-deur-prioriteit. 344 kleine buurten hebben geen buurtscore.</p>`,
+};
+
+// ------------------------------------------------------------ state & controls
+const $ = id => document.getElementById(id);
+const state = { source: "pub", task: "canvas", mode: "action", gemeente: "", metric: { pub: "canvas", partij: "buurtscore" },
+  election: "tk25", party: "D66" };
+const STORE = "kiezerskaart-nh-v2";
+try { Object.assign(state, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) {}
+if (!PARTIJ) state.source = "pub";
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+
+for (const [c, n] of [...new Map(FEATURES.map(f => [f.properties.gemeentecode, f.properties.gemeentenaam]))].sort((a, b) => a[1].localeCompare(b[1])))
+  $("gemeente").add(new Option(n, c));
+for (const [k, l] of Object.entries(ELECTIONS)) $("election").add(new Option(l, k));
+for (const p of PUB.parties) $("party").add(new Option(p, p));
+if (!PARTIJ) $("source").hidden = $("sourceLabel").hidden = true;  // only one source available
+
+const scopeName = () => state.gemeente ? $("gemeente").selectedOptions[0].text : "Noord-Holland";
+const inScope = f => !state.gemeente || f.properties.gemeentecode === state.gemeente;
+const rec = f => PARTIJ && PARTIJ.get(f.properties.buurtcode);
+
+// ------------------------------------------------------------ priorities & werkgebieden
+let tiers = {};      // task -> Map(code -> 1|2|3)
+let clusters = [];   // werkgebieden for the current task
+function computeTiers() {
+  tiers = {};
+  for (const [t, def] of Object.entries(TASKS)) {
+    const d = def[state.source], m = new Map();
+    const scored = FEATURES.filter(inScope).map(f => [f, d.score(f.properties, rec(f))]).filter(([, v]) => ok(v))
+      .sort((a, b) => b[1] - a[1]);
+    const n1 = Math.max(1, Math.ceil(0.1 * scored.length)), n2 = Math.ceil(0.3 * scored.length);
+    scored.forEach(([f], i) => m.set(f.properties.buurtcode, i < n1 ? 1 : i < n2 ? 2 : 3));
+    tiers[t] = m;
+  }
+}
+
+function computeClusters() {
+  const d = TASKS[state.task][state.source], t = tiers[state.task];
+  const p1 = [...t].filter(([, v]) => v === 1).map(([c]) => c), set = new Set(p1), seen = new Set();
+  clusters = [];
+  for (const start of p1) {
+    if (seen.has(start)) continue;
+    const codes = [], stack = [start];
+    seen.add(start);
+    while (stack.length) {
+      const c = stack.pop(); codes.push(c);
+      for (const n of PUB.buren[c] || []) if (set.has(n) && !seen.has(n)) { seen.add(n); stack.push(n); }
+    }
+    const fs = codes.map(c => BY_CODE.get(c));
+    const vol = fs.reduce((s, f) => s + (d.volume(f.properties, rec(f)) || 0), 0);
+    const base = fs.reduce((s, f) => s + (d.base(f.properties, rec(f)) || 0), 0);
+    const main = fs.slice().sort((a, b) => (d.volume(b.properties, rec(b)) || 0) - (d.volume(a.properties, rec(a)) || 0))[0];
+    clusters.push({ codes, vol, base, name: main.properties.buurtnaam, gemeente: main.properties.gemeentenaam });
+  }
+  clusters.sort((a, b) => b.vol - a.vol);
+}
+
+// ------------------------------------------------------------ rendering
+function breaks(vals, diverging) {
+  const s = vals.slice().sort((a, b) => a - b);
+  if (!s.length) return [];
+  const q = f => s[Math.min(s.length - 1, Math.floor(f * s.length))];
+  if (diverging) {
+    const a = Math.max(Math.abs(q(0.05)), Math.abs(q(0.95))) / 3.5;
+    return [-2.5 * a, -1.5 * a, -0.5 * a, 0.5 * a, 1.5 * a, 2.5 * a];
+  }
+  return [1, 2, 3, 4, 5, 6].map(i => q(i / 7));
+}
+
+function exploreValue(f) {
+  const key = state.metric[state.source], m = EXPLORE[state.source][key];
+  if (state.source === "pub" && key === "aandeel") return share(f.properties, state.election, state.party);
+  const v = m.get(f.properties, rec(f), state.election);
+  return ok(v) ? v : null;
+}
+
+let exploreRanked = [];
+function render() {
+  save();
+  for (const b of $("source").children) b.setAttribute("aria-pressed", b.dataset.v === state.source);
+  for (const b of $("tasks").children) b.setAttribute("aria-pressed", state.mode === "action" && b.dataset.v === state.task);
+  $("gemeente").value = state.gemeente;
+  $("actionPanel").hidden = state.mode !== "action";
+  $("explorePanel").hidden = state.mode !== "explore";
+  $("question").textContent = state.mode === "action" ? TASKS[state.task].question : "";
+  $("method").innerHTML = METHOD[state.source];
+  $("sourceHelp").textContent = state.source === "pub"
+    ? "Eigen schatting per buurt op basis van de officiële uitslagen per stembureau (Kiesraad) en CBS-buurtcijfers."
+    : "Cijfers per buurt uit de buurtanalyse die D66 Noord-Holland heeft aangeleverd (spreadsheet).";
+  $("sourceNote").hidden = state.source !== "partij";
+  $("sourceNote").textContent = "Conceptversie: in Hoorn en Heemstede ontbreekt PS2023, en de berekening van de buurtscore is niet bekend.";
+
+  computeTiers();
+  if (state.mode === "action") {
+    computeClusters();
+    const t = tiers[state.task];
+    for (const f of FEATURES) {
+      const tier = t.get(f.properties.buurtcode);
+      f.properties.col = tier ? COLORS[tier] : COLORS.nodata;
+      f.properties.op = tier ? (tier === 3 ? 0.55 : 0.8) : (inScope(f) ? 0.45 : 0.2);
+    }
+    renderSummary();
+    renderClusters();
+  } else {
+    renderExplore();
+  }
+  if (map.getSource("buurten")) map.getSource("buurten").setData(PUB.buurten);
+  highlight([]);
+  updateStations();
+}
+
+function renderSummary() {
+  const d = TASKS[state.task][state.source], t = tiers[state.task];
+  let vol = 0, vol1 = 0, base = 0, base1 = 0, n1 = 0, n = 0;
+  for (const f of FEATURES) {
+    const tier = t.get(f.properties.buurtcode); if (!tier) continue;
+    const v = d.volume(f.properties, rec(f)) || 0, b = d.base(f.properties, rec(f)) || 0;
+    n++; vol += v; base += b;
+    if (tier === 1) { n1++; vol1 += v; base1 += b; }
+  }
+  if (!n) { $("summary").innerHTML = "Voor deze selectie is geen data beschikbaar."; return; }
+  const baseTxt = d.baseLabel === "oppervlakte" ? `op <b>${pct0(base1 / base)}</b> van de oppervlakte`
+    : `met <b>${pct0(base1 / base)}</b> van de ${d.baseLabel}`;
+  $("summary").innerHTML = `In ${esc(scopeName())} bevatten de <b>${n1}</b> buurten met prioriteit 1 samen <b>${approx(vol1)}</b> ${d.volLabel}:
+    <b>${pct0(vol1 / vol)}</b> van het totaal, ${baseTxt}. Ze liggen in <b>${clusters.length}</b> werkgebied${clusters.length === 1 ? "" : "en"}.`;
+}
+
+function renderClusters() {
+  const d = TASKS[state.task][state.source];
+  $("wgHead").textContent = d.volLabel === "thuisblijvende D66-kiezers" ? "Thuisblijvers" : "D66-kiezers";
+  $("werkgebieden").innerHTML = clusters.slice(0, 15).map((c, i) => {
+    const extra = c.codes.length > 1 ? ` + ${c.codes.length - 1} buurt${c.codes.length > 2 ? "en" : ""}` : "";
+    const rate = d.baseLabel === "oppervlakte" ? `${nf0.format(c.vol / c.base)} per km²`
+      : d.baseLabel === "huishoudens" ? `${nf1.format(100 * c.vol / c.base)} per 100 deuren · ${nf0.format(c.base)} huishoudens`
+      : `${nf0.format(c.base)} inwoners`;
+    return `<tr data-i="${i}"><td>${i + 1}</td><td>${esc(c.name)}${extra}<div class="sub">${esc(c.gemeente)} · ${rate}</div></td><td class="n">${approx(c.vol)}</td></tr>`;
+  }).join("") || `<tr><td colspan="3">Geen werkgebieden in deze selectie.</td></tr>`;
+}
+
+function renderExplore() {
+  const src = EXPLORE[state.source];
+  const sel = $("metric");
+  if (sel.dataset.source !== state.source) {
+    sel.innerHTML = ""; sel.dataset.source = state.source;
+    for (const [k, m] of Object.entries(src)) sel.add(new Option(m.label, k));
+  }
+  if (!src[state.metric[state.source]]) state.metric[state.source] = Object.keys(src)[0];
+  sel.value = state.metric[state.source];
+  const m = src[sel.value];
+  $("partyRow").style.display = state.source === "pub" && m.party ? "flex" : "none";
+  $("party").parentElement.style.display = m.party === true ? "" : "none";
+  $("election").value = state.election; $("party").value = state.party;
+  $("stationsRow").hidden = state.source !== "pub";
+  $("metricDesc").textContent = m.desc || "";
+  const vals = FEATURES.map(f => [f, exploreValue(f)]);
+  const scoped = vals.filter(([f, v]) => v != null && inScope(f));
+  const b = breaks(scoped.map(([, v]) => v), m.diverging), colors = m.diverging ? DIV : SEQ;
+  for (const [f, v] of vals) {
+    let i = 0; while (i < b.length && v >= b[i]) i++;
+    f.properties.col = v == null ? COLORS.nodata : colors[i];
+    f.properties.op = v == null ? 0.45 : inScope(f) ? 0.78 : 0.3;
+  }
+  $("legend").innerHTML = `<div class="bar">${colors.map(c => `<span style="background:${c}"></span>`).join("")}</div>
+    <div class="ticks">${b.map((x, i) => i % 2 === 0 ? `<span style="left:${(100 * (i + 1)) / 7}%">${m.fmt(x)}</span>` : "").join("")}</div>`;
+  exploreRanked = scoped.sort((a, b) => b[1] - a[1]);
+  $("topHead").textContent = m.col;
+  $("top").innerHTML = exploreRanked.slice(0, 25).map(([f, v], i) =>
+    `<tr data-code="${f.properties.buurtcode}"><td>${i + 1}</td><td>${esc(f.properties.buurtnaam)}<div class="sub">${esc(f.properties.gemeentenaam)}</div></td><td class="n">${m.fmt(v)}</td></tr>`).join("");
+}
+
+// ------------------------------------------------------------ map
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: { brt: { type: "raster", tileSize: 256, attribution: "Kaart: <a href='https://www.pdok.nl'>PDOK</a> BRT · Data: Kiesraad, Open State, CBS",
+      tiles: ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"] } },
+    layers: [{ id: "brt", type: "raster", source: "brt" }],
+  },
+  bounds: [[4.45, 52.15], [5.35, 53.2]],
+  maxZoom: 18,
+});
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+function bbox(geoms) {
+  let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
+  const walk = c => typeof c[0] === "number" ? (x0 = Math.min(x0, c[0]), y0 = Math.min(y0, c[1]), x1 = Math.max(x1, c[0]), y1 = Math.max(y1, c[1])) : c.forEach(walk);
+  geoms.forEach(g => walk(g.coordinates));
+  return [[x0, y0], [x1, y1]];
+}
+function highlight(codes) {
+  if (map.getLayer("hl")) map.setFilter("hl", ["in", ["get", "buurtcode"], ["literal", codes]]);
+}
+function zoomTo(codes, maxZoom = 15) {
+  map.fitBounds(bbox(codes.map(c => BY_CODE.get(c).geometry)), { padding: 60, maxZoom });
+  highlight(codes);
+}
+
+const TASK_NAMES = { canvas: "Deur-aan-deur", events: "Flyeren & events", sterk: "Achterban" };
+function popup(code, lngLat) {
+  const f = BY_CODE.get(code), p = f.properties, r = rec(f);
+  const fmt = (v, fn) => ok(v) ? fn(v) : "–";
+  const badges = Object.keys(TASKS).map(t => {
+    const tier = tiers[t].get(code);
+    return `<span class="badge ${tier && tier < 3 ? "t" + tier : ""}">${TASK_NAMES[t]}: ${tier ? (tier < 3 ? "prioriteit " + tier : "overig") : "geen data"}</span>`;
+  }).join("");
+  let key, details;
+  if (state.source === "pub") {
+    key = `<ul>
+      <li>${fmt(p.d66_mobiliseerbaar, approx)} D66-kiezers blijven bij PS waarschijnlijk thuis (${fmt(p.d66_mob_per_100hh, nf1.format)} per 100 deuren)</li>
+      <li>${fmt(p.d66_kiezers_tk25, approx)} D66-kiezers bij TK2025 (${fmt(p.d66_aandeel_tk25, pct)})</li>
+      <li>D66 bij PS2023: ${fmt(p.d66_aandeel_ps23, pct)}${ok(p.d66_aandeel_gr26) ? ` · bij GR2026: ${pct(p.d66_aandeel_gr26)}` : ""}</li></ul>`;
+    details = Object.entries(ELECTIONS).map(([e, l]) => {
+      const top = PUB.parties.map(x => [x, share(p, e, x)]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      return top.length ? `<div class="g" style="margin:6px 0 2px"><b>${l}</b></div><div class="kv">${top.map(([x, v]) => `<span>${x}</span><span>${pct(v)}</span>`).join("")}</div>` : "";
+    }).join("");
+  } else if (r) {
+    key = `<ul>
+      <li>${fmt(partijMob(r), approx)} D66-stemmers blijven bij PS waarschijnlijk thuis</li>
+      <li>${fmt(r.d66_stemmen_tk25, nf0.format)} D66-stemmen bij TK2025 (${fmt(r.d66_tk25, pct)})</li>
+      <li>Buurtscore: ${fmt(r.buurtscore, nf0.format)}</li></ul>`;
+    details = `<div class="kv">
+      <span>D66 TK2023 / PS2023</span><span>${fmt(r.d66_tk23, pct)} / ${fmt(r.d66_ps23, pct)}</span>
+      <span>Opkomst TK2025</span><span>${fmt(r.opkomst_tk25, pct)}</span>
+      <span>Opkomst TK2023</span><span>${fmt(r.opkomst_tk23, pct)}</span>
+      <span>Opkomst PS2023</span><span>${fmt(r.opkomst_ps23, pct)}</span></div>`;
+  } else {
+    key = "<p>Deze buurt staat niet in de spreadsheet van de partij.</p>"; details = "";
+  }
+  const inw = state.source === "partij" && r ? r.inwoners : p.inwoners;
+  new maplibregl.Popup({ maxWidth: "340px" }).setLngLat(lngLat).setHTML(`<div class="pop">
+    <h3>${esc(p.buurtnaam)}</h3><div class="g">${esc(p.gemeentenaam)} · ${fmt(inw, nf0.format)} inwoners · ${fmt(p.huishoudens, nf0.format)} huishoudens</div>
+    <div class="badges">${badges}</div>${key}${details ? `<details><summary>Alle cijfers</summary>${details}</details>` : ""}</div>`).addTo(map);
+}
+
+function stationsGeoJSON() {
+  return { type: "FeatureCollection", features: PUB.stations[state.election].map(s => ({
+    type: "Feature", geometry: { type: "Point", coordinates: [s.lon, s.lat] }, properties: { ...s, e: state.election } })) };
+}
+function updateStations() {
+  if (!map.getSource("stations")) return;
+  const show = state.mode === "explore" && state.source === "pub" && $("showStations").checked;
+  if (show) map.getSource("stations").setData(stationsGeoJSON());
+  map.setLayoutProperty("stations", "visibility", show ? "visible" : "none");
+}
+
+map.on("load", () => {
+  map.addSource("buurten", { type: "geojson", data: PUB.buurten });
+  map.addLayer({ id: "buurten-fill", type: "fill", source: "buurten", paint: { "fill-color": ["get", "col"],
+    "fill-opacity": ["interpolate", ["linear"], ["zoom"], 11, ["get", "op"], 15, ["*", ["get", "op"], 0.55]] } });
+  map.addLayer({ id: "buurten-line", type: "line", source: "buurten",
+    paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.2, 14, 1.2] } });
+  map.addLayer({ id: "hl", type: "line", source: "buurten", filter: ["in", ["get", "buurtcode"], ["literal", []]],
+    paint: { "line-color": "#eb6834", "line-width": 3 } });
+  map.addSource("stations", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "stations", type: "circle", source: "stations", minzoom: 12, layout: { visibility: "none" },
+    paint: { "circle-radius": ["interpolate", ["linear"], ["get", "geldig"], 0, 4, 1500, 9],
+      "circle-color": "#ffffff", "circle-stroke-color": "#0b0b0b", "circle-stroke-width": 2 } });
+  map.on("click", "stations", ev => {
+    const s = ev.features[0].properties;
+    const rows = PUB.parties.map(x => [x, +s[x] || 0]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(ev.lngLat).setHTML(
+      `<div class="pop"><h3>${esc(s.naam)}</h3><div class="g">${ELECTIONS[s.e]} · ${nf0.format(s.geldig)} geldige stemmen (werkelijke uitslag)</div>
+      <div class="kv">${rows.map(([x, v]) => `<span>${x}</span><span>${nf0.format(v)} · ${pct(v / s.geldig)}</span>`).join("")}</div></div>`).addTo(map);
+    ev.preventDefault();
+  });
+  map.on("click", "buurten-fill", ev => { if (!ev.defaultPrevented) popup(ev.features[0].properties.buurtcode, ev.lngLat); });
+  for (const l of ["buurten-fill", "stations"]) {
+    map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
+  }
+  render();
+  if (state.gemeente) zoomGemeente();
+});
+
+function zoomGemeente() {
+  map.fitBounds(bbox(FEATURES.filter(inScope).map(f => f.geometry)), { padding: 30 });
+}
+
+// ------------------------------------------------------------ events
+$("source").addEventListener("click", ev => { const b = ev.target.closest("button"); if (b && !b.disabled) { state.source = b.dataset.v; render(); } });
+$("tasks").addEventListener("click", ev => { const b = ev.target.closest("button"); if (b) { state.task = b.dataset.v; state.mode = "action"; render(); } });
+$("gemeente").addEventListener("change", () => { state.gemeente = $("gemeente").value; render(); zoomGemeente(); });
+$("toExplore").addEventListener("click", () => { state.mode = "explore"; render(); });
+$("toAction").addEventListener("click", () => { state.mode = "action"; render(); });
+$("metric").addEventListener("change", () => { state.metric[state.source] = $("metric").value; render(); });
+$("election").addEventListener("change", () => { state.election = $("election").value; render(); });
+$("party").addEventListener("change", () => { state.party = $("party").value; render(); });
+$("showStations").addEventListener("change", updateStations);
+$("werkgebieden").addEventListener("click", ev => {
+  const tr = ev.target.closest("tr[data-i]"); if (!tr) return;
+  zoomTo(clusters[+tr.dataset.i].codes);
+});
+$("top").addEventListener("click", ev => {
+  const tr = ev.target.closest("tr[data-code]"); if (!tr) return;
+  const code = tr.dataset.code, bb = bbox([BY_CODE.get(code).geometry]);
+  zoomTo([code]);
+  popup(code, [(bb[0][0] + bb[1][0]) / 2, (bb[0][1] + bb[1][1]) / 2]);
+});
+$("csv").addEventListener("click", () => {
+  const d = TASKS[state.task][state.source], t = tiers[state.task];
+  const wg = new Map(); clusters.forEach((c, i) => c.codes.forEach(code => wg.set(code, i + 1)));
+  const rows = FEATURES.filter(f => t.has(f.properties.buurtcode)).map(f => {
+    const p = f.properties, r = rec(f);
+    return { buurtcode: p.buurtcode, buurt: p.buurtnaam, gemeente: p.gemeentenaam, prioriteit: t.get(p.buurtcode),
+      werkgebied: wg.get(p.buurtcode) || "", [d.volLabel]: Math.round(d.volume(p, r) || 0),
+      [d.rateLabel]: ok(d.rate(p, r)) ? +d.rate(p, r).toFixed(3) : "", [d.baseLabel]: ok(d.base(p, r)) ? +(+d.base(p, r)).toFixed(3) : "",
+      score: +d.score(p, r).toFixed(3) };
+  }).sort((a, b) => b.score - a.score);
+  const cols = Object.keys(rows[0] || {});
+  const cell = v => /[",;\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const csv = [cols.join(";"), ...rows.map(r => cols.map(c => cell(r[c])).join(";"))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" }));
+  a.download = `prioriteiten_${state.task}_${state.source}${state.gemeente ? "_" + state.gemeente : ""}.csv`;
+  a.click();
+});
+</script>
+</body>
+</html>

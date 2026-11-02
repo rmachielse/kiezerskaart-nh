@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="data/processed/data.js"></script>
+<script src="data/processed/afdelingen.js"></script>
 <script src="data/processed/partij_data.js" onerror="window.PARTIJ = null"></script>
 <style>
 :root {
@@ -64,6 +65,7 @@ table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-
 th { text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 1px solid var(--border); padding: 4px 3px; }
 td { padding: 5px 3px; border-bottom: 1px solid var(--border); vertical-align: top; }
 td.n, th.n { text-align: right; white-space: nowrap; }
+#afdTable td:first-child { white-space: nowrap; }
 td .sub { color: var(--text-muted); font-size: 11.5px; }
 tbody.click tr { cursor: pointer; } tbody.click tr:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .btnrow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
@@ -94,6 +96,11 @@ details summary { cursor: pointer; color: var(--text-primary); font-weight: 600;
 <aside id="side">
   <h1>Kiezerskaart D66 Noord-Holland</h1>
 
+  <div class="seg" id="view" role="group" aria-label="Weergave" style="margin-bottom:14px">
+    <button data-v="afdelingen">Per afdeling</button>
+    <button data-v="buurten">Per buurt</button>
+  </div>
+
   <label id="sourceLabel" style="margin-top:0">Gebaseerd op</label>
   <div class="seg" id="source" role="group" aria-label="Gebaseerd op">
     <button data-v="pub">Verkiezingsuitslagen</button>
@@ -102,8 +109,10 @@ details summary { cursor: pointer; color: var(--text-primary); font-weight: 600;
   <p class="question" id="sourceHelp"></p>
   <div class="note" id="sourceNote" hidden></div>
 
-  <label for="gemeente">Waar ben je actief?</label>
-  <select id="gemeente"><option value="">Heel Noord-Holland</option></select>
+  <div id="scopeRow">
+    <label for="afdeling">Afdeling</label>
+    <select id="afdeling"><option value="">Heel Noord-Holland</option></select>
+  </div>
 
   <label>Wat ga je doen?</label>
   <div class="tasks" id="tasks">
@@ -112,6 +121,22 @@ details summary { cursor: pointer; color: var(--text-primary); font-weight: 600;
     <button data-v="sterk">Achterban<small>waar staan we sterk</small></button>
   </div>
   <p class="question" id="question"></p>
+
+  <section id="afdelingPanel" hidden>
+    <div class="summary" id="afdSummary"></div>
+    <div class="tiers">
+      <span><i style="background:#184f95"></i>Top 4</span>
+      <span><i style="background:#3987e5"></i>5–8</span>
+      <span><i style="background:#9ec5f4"></i>9–13</span>
+      <span><i style="background:var(--p3);outline:1px solid var(--border)"></i>Overig</span>
+    </div>
+    <h2>Afdelingen op volgorde</h2>
+    <p class="question" style="margin-top:0">Klik op een afdeling om de buurten en werkgebieden te zien.</p>
+    <table><thead><tr><th>#</th><th>Afdeling</th><th class="n" id="afdHead"></th><th class="n">Aandeel</th></tr></thead><tbody id="afdTable" class="click"></tbody></table>
+    <div class="btnrow">
+      <button class="btn" id="csvAfd">Download afdelingen (CSV)</button>
+    </div>
+  </section>
 
   <section id="actionPanel">
     <div class="summary" id="summary"></div>
@@ -260,22 +285,83 @@ const METHOD = {
 
 // ------------------------------------------------------------ state & controls
 const $ = id => document.getElementById(id);
-const state = { source: "pub", task: "canvas", mode: "action", gemeente: "", metric: { pub: "canvas", partij: "buurtscore" },
-  election: "tk25", party: "D66" };
-const STORE = "kiezerskaart-nh-v2";
+const state = { view: "afdelingen", source: "pub", task: "canvas", mode: "action", afdeling: "",
+  metric: { pub: "canvas", partij: "buurtscore" }, election: "tk25", party: "D66" };
+const STORE = "kiezerskaart-nh-v3";
 try { Object.assign(state, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) {}
 if (!PARTIJ) state.source = "pub";
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
 
-for (const [c, n] of [...new Map(FEATURES.map(f => [f.properties.gemeentecode, f.properties.gemeentenaam]))].sort((a, b) => a[1].localeCompare(b[1])))
-  $("gemeente").add(new Option(n, c));
+const AFD = window.AFDELINGEN;
+const afdOf = gm => AFD.gemeenten[gm].afdeling;
+const AFD_GEMEENTEN = new Map();  // afdeling -> [gemeentenaam]
+for (const [gm, n] of new Map(FEATURES.map(f => [f.properties.gemeentecode, f.properties.gemeentenaam]))) {
+  const a = afdOf(gm);
+  AFD_GEMEENTEN.set(a, [...(AFD_GEMEENTEN.get(a) || []), n].sort());
+}
+for (const a of [...AFD_GEMEENTEN.keys()].sort((x, y) => x.localeCompare(y))) {
+  const g = AFD_GEMEENTEN.get(a);
+  $("afdeling").add(new Option(g.length > 1 || g[0] !== a ? `${a} (${g.join(", ")})` : a, a));
+}
 for (const [k, l] of Object.entries(ELECTIONS)) $("election").add(new Option(l, k));
 for (const p of PUB.parties) $("party").add(new Option(p, p));
 if (!PARTIJ) $("source").hidden = $("sourceLabel").hidden = true;  // only one source available
 
-const scopeName = () => state.gemeente ? $("gemeente").selectedOptions[0].text : "Noord-Holland";
-const inScope = f => !state.gemeente || f.properties.gemeentecode === state.gemeente;
+const scopeName = () => state.afdeling ? `afdeling ${state.afdeling}` : "Noord-Holland";
+const inScope = f => !state.afdeling || afdOf(f.properties.gemeentecode) === state.afdeling;
 const rec = f => PARTIJ && PARTIJ.get(f.properties.buurtcode);
+
+// ------------------------------------------------------------ afdelingen
+const BANDS = [[4, "#184f95"], [8, "#3987e5"], [13, "#9ec5f4"], [Infinity, "#e3ecf8"]];
+let afdRanked = [];
+function computeAfdelingen() {
+  const d = TASKS[state.task][state.source], agg = new Map();
+  for (const f of FEATURES) {
+    const a = afdOf(f.properties.gemeentecode), r = rec(f);
+    const o = agg.get(a) || { afdeling: a, vol: 0, base: 0 };
+    o.vol += d.volume(f.properties, r) || 0;
+    o.base += d.base(f.properties, r) || 0;
+    agg.set(a, o);
+  }
+  afdRanked = [...agg.values()].sort((x, y) => y.vol - x.vol);
+  const total = afdRanked.reduce((s, o) => s + o.vol, 0);
+  afdRanked.forEach((o, i) => {
+    o.rank = i + 1; o.share = o.vol / total;
+    o.col = BANDS.find(([n]) => o.rank <= n)[1];
+  });
+}
+
+function afdRate(o) {
+  const b = TASKS[state.task][state.source].baseLabel;
+  return b === "huishoudens" ? `${nf1.format(100 * o.vol / o.base)} per 100 deuren`
+    : b === "oppervlakte" ? `${nf0.format(o.vol / o.base)} per km²` : `${nf0.format(o.base)} inwoners`;
+}
+
+function renderAfdelingen() {
+  computeAfdelingen();
+  const d = TASKS[state.task][state.source], [top, ...rest] = afdRanked, next = rest.slice(0, 12);
+  const nextShare = next.reduce((s, o) => s + o.share, 0);
+  $("afdSummary").innerHTML = `<b>${esc(top.afdeling)}</b> heeft <b>${pct0(top.share)}</b> van alle ${d.volLabel} in Noord-Holland.
+    De <b>12 afdelingen daarna</b> hebben er samen <b>${pct0(nextShare)}</b>: ${next.map(o => esc(o.afdeling)).join(", ")}.
+    Samen is dat <b>${pct0(top.share + nextShare)}</b>.`;
+  $("afdHead").textContent = d.volLabel === "thuisblijvende D66-kiezers" ? "Thuisblijvers" : "D66-kiezers";
+  $("afdTable").innerHTML = afdRanked.map(o => {
+    const g = AFD_GEMEENTEN.get(o.afdeling), gem = g.length > 1 || g[0] !== o.afdeling ? `${g.join(", ")} · ` : "";
+    return `<tr data-afd="${esc(o.afdeling)}"${o.rank === 14 ? ' style="border-top:2px solid var(--text-muted)"' : ""}>
+      <td><span class="sw" style="background:${o.col}"></span>${o.rank}</td><td>${esc(o.afdeling)}<div class="sub">${esc(gem)}${afdRate(o)}</div></td>
+      <td class="n">${approx(o.vol)}</td><td class="n">${pct(o.share)}</td></tr>`;
+  }).join("");
+  const byName = new Map(afdRanked.map(o => [o.afdeling, o]));
+  for (const f of AFD.geo.features) {
+    const o = byName.get(f.properties.afdeling);
+    f.properties.col = o ? o.col : COLORS.nodata;
+  }
+}
+
+function goToAfdeling(a) {
+  state.afdeling = a; state.view = "buurten"; state.mode = "action";
+  render(); zoomScope();
+}
 
 // ------------------------------------------------------------ priorities & werkgebieden
 let tiers = {};      // task -> Map(code -> 1|2|3)
@@ -336,11 +422,15 @@ let exploreRanked = [];
 function render() {
   save();
   for (const b of $("source").children) b.setAttribute("aria-pressed", b.dataset.v === state.source);
-  for (const b of $("tasks").children) b.setAttribute("aria-pressed", state.mode === "action" && b.dataset.v === state.task);
-  $("gemeente").value = state.gemeente;
-  $("actionPanel").hidden = state.mode !== "action";
-  $("explorePanel").hidden = state.mode !== "explore";
-  $("question").textContent = state.mode === "action" ? TASKS[state.task].question : "";
+  const afdView = state.view === "afdelingen";
+  for (const b of $("view").children) b.setAttribute("aria-pressed", b.dataset.v === state.view);
+  for (const b of $("tasks").children) b.setAttribute("aria-pressed", (afdView || state.mode === "action") && b.dataset.v === state.task);
+  $("afdeling").value = state.afdeling;
+  $("scopeRow").hidden = afdView;
+  $("afdelingPanel").hidden = !afdView;
+  $("actionPanel").hidden = afdView || state.mode !== "action";
+  $("explorePanel").hidden = afdView || state.mode !== "explore";
+  $("question").textContent = afdView || state.mode === "action" ? TASKS[state.task].question : "";
   $("method").innerHTML = METHOD[state.source];
   $("sourceHelp").textContent = state.source === "pub"
     ? "Eigen schatting per buurt op basis van de officiële uitslagen per stembureau (Kiesraad) en CBS-buurtcijfers."
@@ -362,7 +452,15 @@ function render() {
   } else {
     renderExplore();
   }
-  if (map.getSource("buurten")) map.getSource("buurten").setData(PUB.buurten);
+  if (afdView) renderAfdelingen();
+  if (map.getSource("buurten")) {
+    map.getSource("buurten").setData(PUB.buurten);
+    map.getSource("afdelingen").setData(AFD.geo);
+    map.setLayoutProperty("buurten-fill", "visibility", afdView ? "none" : "visible");
+    map.setLayoutProperty("buurten-line", "visibility", afdView ? "none" : "visible");
+    map.setLayoutProperty("afd-fill", "visibility", afdView ? "visible" : "none");
+    map.setPaintProperty("afd-line", "line-width", afdView ? 1.2 : 1.6);
+  }
   highlight([]);
   updateStations();
 }
@@ -487,7 +585,7 @@ function popup(code, lngLat) {
   }
   const inw = state.source === "partij" && r ? r.inwoners : p.inwoners;
   new maplibregl.Popup({ maxWidth: "340px" }).setLngLat(lngLat).setHTML(`<div class="pop">
-    <h3>${esc(p.buurtnaam)}</h3><div class="g">${esc(p.gemeentenaam)} · ${fmt(inw, nf0.format)} inwoners · ${fmt(p.huishoudens, nf0.format)} huishoudens</div>
+    <h3>${esc(p.buurtnaam)}</h3><div class="g">${esc(p.gemeentenaam)} (afdeling ${esc(afdOf(p.gemeentecode))}) · ${fmt(inw, nf0.format)} inwoners · ${fmt(p.huishoudens, nf0.format)} huishoudens</div>
     <div class="badges">${badges}</div>${key}${details ? `<details><summary>Alle cijfers</summary>${details}</details>` : ""}</div>`).addTo(map);
 }
 
@@ -497,17 +595,29 @@ function stationsGeoJSON() {
 }
 function updateStations() {
   if (!map.getSource("stations")) return;
-  const show = state.mode === "explore" && state.source === "pub" && $("showStations").checked;
+  const show = state.view === "buurten" && state.mode === "explore" && state.source === "pub" && $("showStations").checked;
   if (show) map.getSource("stations").setData(stationsGeoJSON());
   map.setLayoutProperty("stations", "visibility", show ? "visible" : "none");
 }
 
 map.on("load", () => {
+  map.addSource("afdelingen", { type: "geojson", data: AFD.geo });
+  map.addLayer({ id: "afd-fill", type: "fill", source: "afdelingen", layout: { visibility: "none" },
+    paint: { "fill-color": ["get", "col"], "fill-opacity": 0.75 } });
   map.addSource("buurten", { type: "geojson", data: PUB.buurten });
   map.addLayer({ id: "buurten-fill", type: "fill", source: "buurten", paint: { "fill-color": ["get", "col"],
     "fill-opacity": ["interpolate", ["linear"], ["zoom"], 11, ["get", "op"], 15, ["*", ["get", "op"], 0.55]] } });
   map.addLayer({ id: "buurten-line", type: "line", source: "buurten",
     paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.2, 14, 1.2] } });
+  map.addLayer({ id: "afd-line", type: "line", source: "afdelingen", paint: { "line-color": "#52514e", "line-width": 1.2 } });
+  map.on("click", "afd-fill", ev => {
+    const o = afdRanked.find(x => x.afdeling === ev.features[0].properties.afdeling); if (!o) return;
+    const d = TASKS[state.task][state.source];
+    new maplibregl.Popup({ maxWidth: "300px" }).setLngLat(ev.lngLat).setHTML(`<div class="pop">
+      <h3>${o.rank}. ${esc(o.afdeling)}</h3><div class="g">${esc(AFD_GEMEENTEN.get(o.afdeling).join(", "))}</div>
+      <ul><li>${approx(o.vol)} ${d.volLabel} (${pct(o.share)} van NH)</li><li>${afdRate(o)}</li></ul>
+      <button class="btn goto-afd" data-afd="${esc(o.afdeling)}">Bekijk buurten en werkgebieden →</button></div>`).addTo(map);
+  });
   map.addLayer({ id: "hl", type: "line", source: "buurten", filter: ["in", ["get", "buurtcode"], ["literal", []]],
     paint: { "line-color": "#eb6834", "line-width": 3 } });
   map.addSource("stations", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -523,22 +633,43 @@ map.on("load", () => {
     ev.preventDefault();
   });
   map.on("click", "buurten-fill", ev => { if (!ev.defaultPrevented) popup(ev.features[0].properties.buurtcode, ev.lngLat); });
-  for (const l of ["buurten-fill", "stations"]) {
+  for (const l of ["buurten-fill", "stations", "afd-fill"]) {
     map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
     map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
   }
   render();
-  if (state.gemeente) zoomGemeente();
+  if (state.view === "buurten" && state.afdeling) zoomScope();
 });
 
-function zoomGemeente() {
-  map.fitBounds(bbox(FEATURES.filter(inScope).map(f => f.geometry)), { padding: 30 });
+function zoomScope() {
+  const fs = state.view === "afdelingen" ? FEATURES : FEATURES.filter(inScope);
+  map.fitBounds(bbox(fs.map(f => f.geometry)), { padding: 30 });
 }
 
 // ------------------------------------------------------------ events
 $("source").addEventListener("click", ev => { const b = ev.target.closest("button"); if (b && !b.disabled) { state.source = b.dataset.v; render(); } });
 $("tasks").addEventListener("click", ev => { const b = ev.target.closest("button"); if (b) { state.task = b.dataset.v; state.mode = "action"; render(); } });
-$("gemeente").addEventListener("change", () => { state.gemeente = $("gemeente").value; render(); zoomGemeente(); });
+$("view").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  state.view = b.dataset.v; render(); zoomScope();
+});
+$("afdeling").addEventListener("change", () => { state.afdeling = $("afdeling").value; render(); zoomScope(); });
+$("afdTable").addEventListener("click", ev => { const tr = ev.target.closest("tr[data-afd]"); if (tr) goToAfdeling(tr.dataset.afd); });
+document.addEventListener("click", ev => {
+  const b = ev.target.closest(".goto-afd"); if (!b) return;
+  document.querySelectorAll(".maplibregl-popup").forEach(p => p.remove());
+  goToAfdeling(b.dataset.afd);
+});
+$("csvAfd").addEventListener("click", () => {
+  const d = TASKS[state.task][state.source];
+  const lines = [["rang", "afdeling", "gemeenten", d.volLabel, "aandeel NH", d.baseLabel].join(";"),
+    ...afdRanked.map(o => [o.rank, o.afdeling, `"${AFD_GEMEENTEN.get(o.afdeling).join(", ")}"`, Math.round(o.vol),
+      o.share.toFixed(4), Math.round(o.base)].join(";"))];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv" }));
+  a.download = `afdelingen_${state.task}_${state.source}.csv`;
+  a.click();
+});
 $("toExplore").addEventListener("click", () => { state.mode = "explore"; render(); });
 $("toAction").addEventListener("click", () => { state.mode = "action"; render(); });
 $("metric").addEventListener("change", () => { state.metric[state.source] = $("metric").value; render(); });
@@ -570,7 +701,7 @@ $("csv").addEventListener("click", () => {
   const csv = [cols.join(";"), ...rows.map(r => cols.map(c => cell(r[c])).join(";"))].join("\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" }));
-  a.download = `prioriteiten_${state.task}_${state.source}${state.gemeente ? "_" + state.gemeente : ""}.csv`;
+  a.download = `prioriteiten_${state.task}_${state.source}${state.afdeling ? "_" + state.afdeling : ""}.csv`;
   a.click();
 });
 </script>

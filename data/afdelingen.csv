@@ -1,0 +1,45 @@
+gemeentecode,gemeente,afdeling,regio
+GM0363,Amsterdam,Amsterdam,Amsterdam
+GM0361,Alkmaar,Alkmaar,Alkmaar
+GM0373,Bergen (NH.),BUCH,Alkmaar
+GM0450,Uitgeest,BUCH,Alkmaar
+GM0383,Castricum,BUCH,Alkmaar
+GM0399,Heiloo,BUCH,Alkmaar
+GM1980,Dijk en Waard,Dijk en Waard,Alkmaar
+GM0375,Beverwijk,IJmond,IJmond
+GM0396,Heemskerk,IJmond,IJmond
+GM0453,Velsen,IJmond,IJmond
+GM0358,Aalsmeer,Aalsmeer,Amstelland-Meerlanden
+GM0362,Amstelveen,Amstelveen,Amstelland-Meerlanden
+GM0384,Diemen,Diemen,Amstelland-Meerlanden
+GM0394,Haarlemmermeer,Haarlemmermeer,Amstelland-Meerlanden
+GM0437,Ouder-Amstel,Ouder-Amstel,Amstelland-Meerlanden
+GM0451,Uithoorn,Uithoorn,Amstelland-Meerlanden
+GM0376,Blaricum,BEL,Gooi & Vechtstreek
+GM0417,Laren (NH.),BEL,Gooi & Vechtstreek
+GM0402,Hilversum,Hilversum,Gooi & Vechtstreek
+GM0406,Huizen,Huizen,Gooi & Vechtstreek
+GM1942,Gooise Meren,Gooise Meren,Gooi & Vechtstreek
+GM1696,Wijdemeren,Wijdemeren,Gooi & Vechtstreek
+GM0400,Den Helder,Den Helder,Kop van Noord-Holland
+GM1911,Hollands Kroon,Hollands Kroon,Kop van Noord-Holland
+GM0441,Schagen,Schagen,Kop van Noord-Holland
+GM0448,Texel,Texel,Kop van Noord-Holland
+GM0405,Hoorn,Hoorn,West-Friesland
+GM0498,Drechterland,West-Friesland,West-Friesland
+GM0388,Enkhuizen,West-Friesland,West-Friesland
+GM1598,Koggenland,West-Friesland,West-Friesland
+GM0420,Medemblik,West-Friesland,West-Friesland
+GM0432,Opmeer,West-Friesland,West-Friesland
+GM0532,Stede Broec,West-Friesland,West-Friesland
+GM0385,Edam-Volendam,Groot-Waterland,Zaanstreek-Waterland
+GM0439,Purmerend,Groot-Waterland,Zaanstreek-Waterland
+GM0852,Waterland,Groot-Waterland,Zaanstreek-Waterland
+GM0415,Landsmeer,Landsmeer-Oostzaan,Zaanstreek-Waterland
+GM0431,Oostzaan,Landsmeer-Oostzaan,Zaanstreek-Waterland
+GM0479,Zaanstad,Zaanstreek,Zaanstreek-Waterland
+GM0880,Wormerland,Zaanstreek,Zaanstreek-Waterland
+GM0392,Haarlem,Haarlem,Zuid-Kennemerland
+GM0377,Bloemendaal,Bloemendaal,Zuid-Kennemerland
+GM0397,Heemstede,Heemstede,Zuid-Kennemerland
+GM0473,Zandvoort,Zandvoort,Zuid-Kennemerland

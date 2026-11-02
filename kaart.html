@@ -294,7 +294,7 @@ const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); }
 
 const AFD = window.AFDELINGEN;
 // Afdeling of a buurt: per gemeente, except Amsterdam (a deelafdeling per stadsdeel).
-const afdOf = p => AFD.buurten[p.buurtcode] || AFD.gemeenten[p.gemeentecode].afdeling;
+const afdOf = p => (AFD.buurten || {})[p.buurtcode] || AFD.gemeenten[p.gemeentecode].afdeling;
 const AFD_GEMEENTEN = new Map();  // afdeling -> [gemeentenaam]
 for (const f of FEATURES) {
   const a = afdOf(f.properties), g = AFD_GEMEENTEN.get(a) || [];

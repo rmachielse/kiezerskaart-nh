@@ -25,7 +25,9 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site/data/processed
-          cp kaart.html _site/index.html
+          # Version the data URLs so browsers never combine a new page with cached old data.
+          sed -E "s#(src=\"data/processed/[a-z_]+\.js)\"#\1?v=${GITHUB_SHA::7}\"#g" kaart.html > _site/index.html
+          grep -c "?v=${GITHUB_SHA::7}" _site/index.html
           cp data/processed/*.js _site/data/processed/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

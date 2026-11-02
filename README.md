@@ -61,7 +61,8 @@ werkgebieden. Onder "Verkennen" staan alle losse kaartlagen.
 
 De indeling van gemeenten in afdelingen staat in `data/afdelingen.csv`, overgenomen uit het
 [D66NH-overzicht van regio's en afdelingen (2023)](https://d66.nl/noordholland/wp-content/uploads/sites/340/2023/09/D66NH-regioverdeling-2023-def.pdf).
-Na een wijziging:
+Amsterdam is opgedeeld in deelafdelingen per stadsdeel (`data/amsterdam_stadsdelen.csv`, op basis van de letter in de
+CBS-buurtcode; Westpoort valt onder Nieuw-West, Driemond onder Weesp). Na een wijziging:
 
 ```bash
 mise exec uv@0.13.5 -- uv run python scripts/build_afdelingen.py

@@ -127,7 +127,7 @@ details summary { cursor: pointer; color: var(--text-primary); font-weight: 600;
     <div class="tiers">
       <span><i style="background:#184f95"></i>Top 4</span>
       <span><i style="background:#3987e5"></i>5–8</span>
-      <span><i style="background:#9ec5f4"></i>9–13</span>
+      <span><i style="background:#9ec5f4"></i>9–12</span>
       <span><i style="background:var(--p3);outline:1px solid var(--border)"></i>Overig</span>
     </div>
     <h2>Afdelingen op volgorde</h2>
@@ -293,11 +293,12 @@ if (!PARTIJ) state.source = "pub";
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
 
 const AFD = window.AFDELINGEN;
-const afdOf = gm => AFD.gemeenten[gm].afdeling;
+// Afdeling of a buurt: per gemeente, except Amsterdam (a deelafdeling per stadsdeel).
+const afdOf = p => AFD.buurten[p.buurtcode] || AFD.gemeenten[p.gemeentecode].afdeling;
 const AFD_GEMEENTEN = new Map();  // afdeling -> [gemeentenaam]
-for (const [gm, n] of new Map(FEATURES.map(f => [f.properties.gemeentecode, f.properties.gemeentenaam]))) {
-  const a = afdOf(gm);
-  AFD_GEMEENTEN.set(a, [...(AFD_GEMEENTEN.get(a) || []), n].sort());
+for (const f of FEATURES) {
+  const a = afdOf(f.properties), g = AFD_GEMEENTEN.get(a) || [];
+  if (!g.includes(f.properties.gemeentenaam)) AFD_GEMEENTEN.set(a, [...g, f.properties.gemeentenaam].sort());
 }
 for (const a of [...AFD_GEMEENTEN.keys()].sort((x, y) => x.localeCompare(y))) {
   const g = AFD_GEMEENTEN.get(a);
@@ -306,18 +307,20 @@ for (const a of [...AFD_GEMEENTEN.keys()].sort((x, y) => x.localeCompare(y))) {
 for (const [k, l] of Object.entries(ELECTIONS)) $("election").add(new Option(l, k));
 for (const p of PUB.parties) $("party").add(new Option(p, p));
 if (!PARTIJ) $("source").hidden = $("sourceLabel").hidden = true;  // only one source available
+if (!AFD_GEMEENTEN.has(state.afdeling)) state.afdeling = "";  // e.g. a stored afdeling that has since been split
 
 const scopeName = () => state.afdeling ? `afdeling ${state.afdeling}` : "Noord-Holland";
-const inScope = f => !state.afdeling || afdOf(f.properties.gemeentecode) === state.afdeling;
+const inScope = f => !state.afdeling || afdOf(f.properties) === state.afdeling;
 const rec = f => PARTIJ && PARTIJ.get(f.properties.buurtcode);
 
 // ------------------------------------------------------------ afdelingen
-const BANDS = [[4, "#184f95"], [8, "#3987e5"], [13, "#9ec5f4"], [Infinity, "#e3ecf8"]];
+const TOP_N = 12;
+const BANDS = [[4, "#184f95"], [8, "#3987e5"], [TOP_N, "#9ec5f4"], [Infinity, "#e3ecf8"]];
 let afdRanked = [];
 function computeAfdelingen() {
   const d = TASKS[state.task][state.source], agg = new Map();
   for (const f of FEATURES) {
-    const a = afdOf(f.properties.gemeentecode), r = rec(f);
+    const a = afdOf(f.properties), r = rec(f);
     const o = agg.get(a) || { afdeling: a, vol: 0, base: 0 };
     o.vol += d.volume(f.properties, r) || 0;
     o.base += d.base(f.properties, r) || 0;
@@ -339,15 +342,18 @@ function afdRate(o) {
 
 function renderAfdelingen() {
   computeAfdelingen();
-  const d = TASKS[state.task][state.source], [top, ...rest] = afdRanked, next = rest.slice(0, 12);
-  const nextShare = next.reduce((s, o) => s + o.share, 0);
-  $("afdSummary").innerHTML = `<b>${esc(top.afdeling)}</b> heeft <b>${pct0(top.share)}</b> van alle ${d.volLabel} in Noord-Holland.
-    De <b>12 afdelingen daarna</b> hebben er samen <b>${pct0(nextShare)}</b>: ${next.map(o => esc(o.afdeling)).join(", ")}.
-    Samen is dat <b>${pct0(top.share + nextShare)}</b>.`;
+  const d = TASKS[state.task][state.source], top = afdRanked.slice(0, TOP_N);
+  const topShare = top.reduce((s, o) => s + o.share, 0);
+  const ams = afdRanked.filter(o => o.afdeling.startsWith("Amsterdam-"));
+  const amsTop = ams.filter(o => o.rank <= TOP_N).length;
+  $("afdSummary").innerHTML = `De <b>${TOP_N} afdelingen</b> met de meeste ${d.volLabel} hebben er samen
+    <b>${pct0(topShare)}</b> van in Noord-Holland: ${top.map(o => esc(o.afdeling)).join(", ")}.
+    <br>Amsterdam is per stadsdeel ingedeeld: ${amsTop} van de ${ams.length} stadsdelen staan in de top ${TOP_N}
+    (alle stadsdelen samen: ${pct0(ams.reduce((s, o) => s + o.share, 0))}).`;
   $("afdHead").textContent = d.volLabel === "thuisblijvende D66-kiezers" ? "Thuisblijvers" : "D66-kiezers";
   $("afdTable").innerHTML = afdRanked.map(o => {
     const g = AFD_GEMEENTEN.get(o.afdeling), gem = g.length > 1 || g[0] !== o.afdeling ? `${g.join(", ")} · ` : "";
-    return `<tr data-afd="${esc(o.afdeling)}"${o.rank === 14 ? ' style="border-top:2px solid var(--text-muted)"' : ""}>
+    return `<tr data-afd="${esc(o.afdeling)}"${o.rank === TOP_N + 1 ? ' style="border-top:2px solid var(--text-muted)"' : ""}>
       <td><span class="sw" style="background:${o.col}"></span>${o.rank}</td><td>${esc(o.afdeling)}<div class="sub">${esc(gem)}${afdRate(o)}</div></td>
       <td class="n">${approx(o.vol)}</td><td class="n">${pct(o.share)}</td></tr>`;
   }).join("");
@@ -585,7 +591,7 @@ function popup(code, lngLat) {
   }
   const inw = state.source === "partij" && r ? r.inwoners : p.inwoners;
   new maplibregl.Popup({ maxWidth: "340px" }).setLngLat(lngLat).setHTML(`<div class="pop">
-    <h3>${esc(p.buurtnaam)}</h3><div class="g">${esc(p.gemeentenaam)} (afdeling ${esc(afdOf(p.gemeentecode))}) · ${fmt(inw, nf0.format)} inwoners · ${fmt(p.huishoudens, nf0.format)} huishoudens</div>
+    <h3>${esc(p.buurtnaam)}</h3><div class="g">${esc(p.gemeentenaam)} (afdeling ${esc(afdOf(p))}) · ${fmt(inw, nf0.format)} inwoners · ${fmt(p.huishoudens, nf0.format)} huishoudens</div>
     <div class="badges">${badges}</div>${key}${details ? `<details><summary>Alle cijfers</summary>${details}</details>` : ""}</div>`).addTo(map);
 }
 
